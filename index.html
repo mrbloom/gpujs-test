@@ -15,7 +15,7 @@
 <body>
 <div id="graph"></div> 
 <script>
-	const gpu = new GPU();
+	
 	// const matSize = 512;
 
 	function cpuMatMult(m, n) {
@@ -70,6 +70,8 @@
 	function main(i){
 		// const matSize = 512;
 		// Generate Matrices
+		const gpu = new GPU({outputToTexture:true});
+
 		const matSize = i;		
 		const matrices = generateMatrices(matSize);
 		const A = matrices.A;
@@ -94,20 +96,11 @@
 		        return sum;\
 			}`);
 
-		kernel_func1 = function(A,B){
-		        var sum = 0;
-		        // const matSize = Size;
-		        for (var i = 0; i < matSize ; i++) {
-		            sum += A[this.thread.y][i] * B[i][this.thread.x];
-		        }
-		        return sum;
-			}
-
 		const gpuMatMult = gpu.createKernel(kernel_func,
 			                               {
 			                               		constants:{size:matSize},
 			                               		output:[matSize,matSize]
-			                               	});
+			                               	});//.setOutputToTexture(true);
 
 		const gpuResult = gpuMatMult(A, B);
 		const endGPU = window.performance.now();
@@ -119,6 +112,7 @@
 		const perc_diff = Math.abs(cpuResult[0][0]-gpuResult[0][0])*100/cpuResult[0][0]
 
 		console.log(`%c ${diff}`, 'color: red;', `times faster!`, `difference percent = ${perc_diff}`);
+		console.log(`%c Matrix[${matSize}x${matSize}]`, 'color: red;');
 		return diff
 	}
 
