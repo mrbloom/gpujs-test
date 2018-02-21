@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang='en'>
+
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <meta http-equiv='X-UA-Compatible' content='ie=edge'>
+
+    <title>gpu.js demo</title>
+    <!-- <script src='node_modules/gpu.js/bin/gpu-core.min.js'></script> -->
+	<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+	<script src="node_modules/gpu.js/bin/gpu.js"></script>
+	
+</head>
+<body>
+<div id="graph"></div> 
+<script>
+	const gpu = new GPU();
+	// const matSize = 512;
+
+	function cpuMatMult(m, n) {
+	    var result = [];
+	    for (var i = 0; i < m.length; i++) {
+	        result[i] = [];
+	        for (var j = 0; j < n[0].length; j++) {
+	            var sum = 0;
+	            for (var k = 0; k < m[0].length; k++) {
+	                sum += m[i][k] * n[k][j];
+	            }
+	            result[i][j] = sum;
+	        }
+	    }
+	    return result;
+	}
+// Create the GPU accelerated function from a kernel
+// function that computes a single element in the
+// 512 x 512 matrix (2D array). The kernel function
+// is run in a parallel manner in the GPU resulting
+// in very fast computations! (...sometimes)
+
+	
+	function generateMatrices(matSize) {
+	    
+	    let A = [];
+	    let B = [];
+	    for (let n = 0; n < matSize * matSize; n++) {
+	        const randA = Math.random();
+	        const randB = Math.random();
+	        A.push(randA);
+	        B.push(randB);
+	    }
+
+	    A = splitArray(A, matSize);
+	    B = splitArray(B, matSize);
+
+	    function splitArray(array, part) {
+	        var tmp = [];
+	        for (var i = 0; i < array.length; i += part) {
+	            tmp.push(array.slice(i, i + part));
+	        }
+	        return tmp;
+	    }
+
+	    return {
+	        A,
+	        B
+	    };
+	}
+
+	function main(Size){
+		// const matSize = 512;
+		// Generate Matrices
+		const matrices = generateMatrices(Size);
+		const A = matrices.A;
+		const B = matrices.B;
+
+		//CPU
+		const startCPU = window.performance.now();
+		const cpuResult = cpuMatMult(A, B);
+		const endCPU = window.performance.now();
+		const cpuTime = endCPU - startCPU;
+		console.log(`CPU : ${cpuTime}ms`);
+
+		// //GPU
+		const startGPU = window.performance.now();
+		kernel_func = new Function("A","B",`{\
+		        var sum = 0;\
+		        const matSize = ${Size};\
+		        for (var i = 0; i < matSize ; i++) {\
+		            sum += A[this.thread.y][i] * B[i][this.thread.x];\
+		        }\
+		        return sum;\
+			}`);
+
+		const gpuMatMult = gpu.createKernel(kernel_func).setOutput([A.length, B.length]);
+
+		// const gpuMatMult = gpu.createKernel(function (A, B) {
+		//         var sum = 0;
+		//         const matSize = 512;
+		//         for (var i = 0; i < matSize ; i++) {
+		//             sum += A[this.thread.y][i] * B[i][this.thread.x];
+		//         }
+		//         return sum;
+		// })
+		// .setOutput([A.length, B.length]);
+
+		const gpuResult = gpuMatMult(A, B);
+		const endGPU = window.performance.now();
+		const gpuTime = endGPU - startGPU;
+		console.log(`GPU : ${gpuTime}ms`);
+
+		//Diff
+		const diff = (cpuTime - gpuTime) / (gpuTime);
+		const perc_diff = Math.abs(cpuResult[0][0]-gpuResult[0][0])*100/cpuResult[0][0]
+
+		console.log(`%c ${diff}`, 'color: red;', `times faster!`, `difference percent = ${perc_diff}`);
+		return diff
+	}
+
+	// Plotly.plot('graph', [{
+	// 	  y: [100,200,300].map(main),
+	// 	  mode: 'lines',
+	// 	  line: {color: '#80CAF6'}
+	// 	}]);
+
+	Plotly.plot('graph', [{
+		  x: [100,200],
+		  y: [100,200].map(main),
+		  mode: 'lines',
+		  line: {color: '#80CAF6'}
+		}]);
+
+	i = 300
+	step = 100
+	max = 3200
+	setTimeout(update,300)
+
+	function update(){
+		const upd = {
+			x:[[i]],
+			y: [[main(i)]]
+		};
+
+		Plotly.extendTraces('graph', upd, [0])
+
+		if (i===max){ 
+			// clearInterval(timer);
+			return
+		}else{
+			i+=step
+			setTimeout(update, 300)
+		}		
+	}
+
+	
+	
+</script>
+</body>
+
+</html>
