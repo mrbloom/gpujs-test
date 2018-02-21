@@ -67,12 +67,14 @@
 	    };
 	}
 
-	function main(Size){
+	function main(i){
 		// const matSize = 512;
 		// Generate Matrices
-		const matrices = generateMatrices(Size);
+		const matSize = i;		
+		const matrices = generateMatrices(matSize);
 		const A = matrices.A;
 		const B = matrices.B;
+
 
 		//CPU
 		const startCPU = window.performance.now();
@@ -85,24 +87,27 @@
 		const startGPU = window.performance.now();
 		kernel_func = new Function("A","B",`{\
 		        var sum = 0;\
-		        const matSize = ${Size};\
+		        const matSize = ${matSize};\
 		        for (var i = 0; i < matSize ; i++) {\
 		            sum += A[this.thread.y][i] * B[i][this.thread.x];\
 		        }\
 		        return sum;\
 			}`);
 
-		const gpuMatMult = gpu.createKernel(kernel_func).setOutput([A.length, B.length]);
+		kernel_func1 = function(A,B){
+		        var sum = 0;
+		        // const matSize = Size;
+		        for (var i = 0; i < matSize ; i++) {
+		            sum += A[this.thread.y][i] * B[i][this.thread.x];
+		        }
+		        return sum;
+			}
 
-		// const gpuMatMult = gpu.createKernel(function (A, B) {
-		//         var sum = 0;
-		//         const matSize = 512;
-		//         for (var i = 0; i < matSize ; i++) {
-		//             sum += A[this.thread.y][i] * B[i][this.thread.x];
-		//         }
-		//         return sum;
-		// })
-		// .setOutput([A.length, B.length]);
+		const gpuMatMult = gpu.createKernel(kernel_func,
+			                               {
+			                               		constants:{size:matSize},
+			                               		output:[matSize,matSize]
+			                               	});
 
 		const gpuResult = gpuMatMult(A, B);
 		const endGPU = window.performance.now();
@@ -116,12 +121,6 @@
 		console.log(`%c ${diff}`, 'color: red;', `times faster!`, `difference percent = ${perc_diff}`);
 		return diff
 	}
-
-	// Plotly.plot('graph', [{
-	// 	  y: [100,200,300].map(main),
-	// 	  mode: 'lines',
-	// 	  line: {color: '#80CAF6'}
-	// 	}]);
 
 	Plotly.plot('graph', [{
 		  x: [100,200],
